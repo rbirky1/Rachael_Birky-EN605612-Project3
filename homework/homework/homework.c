@@ -43,7 +43,8 @@ int currentSlot;
 /* Slots and values */
 int slots[NUM_SLOTS];
 
-hw_t hw_table[100];
+hw_t hw_table[NUM_HW_T];
+int num_hw = 0;
 
 /**
  * Open homework driver
@@ -54,7 +55,7 @@ hw_t hw_table[100];
  * @param access the access of the caller
  */
 static int homework_open(devminor_t UNUSED(minor), int UNUSED(access),
-	endpoint_t UNUSED(user_endpt))
+	endpoint_t user_endpt)
 {
 	if (DEBUG)
 		printf("homework_open(). Called %d time(s)\n", ++open_counter);
@@ -91,14 +92,45 @@ static int homework_close(devminor_t UNUSED(minor))
  * @param flags unused
  * @param id unused
  */
-static ssize_t homework_read(devminor_t UNUSED(minor), u64_t UNUSED(position),
+static ssize_t homework_read(devminor_t minor, u64_t UNUSED(position),
 	endpoint_t endpt, cp_grant_id_t grant, size_t size, int UNUSED(flags),
-	cdev_id_t UNUSED(id))
+	cdev_id_t id)
 {
 	int ret;
+	hw_t *hwp;
 
 	if (DEBUG)
 		printf("homework_read()\n");
+
+	if (DEBUG)
+	{
+		printf("id: %d.\n", id);
+		printf("endpt: %d.\n", endpt);
+	}
+
+	/* Suspend caller if space and currentSlot uninitialized */
+	if (num_hw < NUM_HW_T && currentSlot == UNINITIALIZED)
+	{
+		hw_t hwp;
+		hwp.hw_inendpt = endpt;
+		hwp.hw_inid = id;
+		hwp.hw_ingrant = grant;
+		hwp.hw_insize = size;
+
+		hw_table[num_hw] = hwp;
+		num_hw++;
+
+		if (DEBUG) {
+			printf("Current slot uninitialized; blocking caller.\n");
+		}
+		return EDONTREPLY;
+	} else {
+		if (DEBUG)
+		{
+			printf("caller would exceed NUM_HW_T limit; aborting.\n");
+		}
+		return INVALID;
+	}
 
 	/* Validate request slot number */
 	if (currentSlot < 0 || currentSlot > (NUM_SLOTS - 1)) {
@@ -141,9 +173,10 @@ static ssize_t homework_read(devminor_t UNUSED(minor), u64_t UNUSED(position),
  */
 static ssize_t homework_write(devminor_t UNUSED(minor), u64_t UNUSED(position),
 	endpoint_t endpt, cp_grant_id_t grant, size_t size, int UNUSED(flags),
-	cdev_id_t UNUSED(id))
+	cdev_id_t id)
 {
-	int ret;
+	int ret, i;
+	hw_t *hwp;
 
 	if (DEBUG)
 		printf("homework_write()\n");
@@ -165,6 +198,25 @@ static ssize_t homework_write(devminor_t UNUSED(minor), u64_t UNUSED(position),
 		if (DEBUG)
 			printf("sys_safecopyfrom error: %d.\n", ret);
 		return ret;
+	}
+
+	for (int i=0; i<NUM_HW_T; i++)
+	{
+		hwp = &hw_table[i];
+		if (hwp->hw_inendpt != NONE)
+		{
+			/* Copy the requested value to the caller using sys_safecopyto. */
+			if ((ret = sys_safecopyto(hwp->hw_inendpt, hwp->hw_ingrant, 0, (vir_bytes) &slots[currentSlot], hwp->hw_insize)) != OK)
+			{
+				if (DEBUG)
+					printf("sys_safecopyto error: %d.\n", ret);
+				return ret;
+			}
+			if (DEBUG)
+			printf("unblocking caller: %d.\n", hwp->hw_inendpt);
+			chardriver_reply_task(hwp->hw_inendpt, hwp->hw_inid, OK);
+			hwp->hw_inendpt = NONE;
+		}
 	}
 
 	return size;
@@ -337,10 +389,10 @@ static void homework_init()
 	register hw_t *hwp;
 	int s;
 	memset(hw_table, '\0' , sizeof(hw_table));
-	for (s=0; s < 100; s++) {
+	for (s=0; s < NUM_HW_T; s++) {
 		hwp = &hw_table[s];
-		hwp->hw_incaller = NONE;
-		if (DEBUG && (hwp->hw_incaller == NONE))
+		hwp->hw_inendpt = NONE;
+		if (DEBUG && (hwp->hw_inendpt == NONE))
 				printf("hwincaller initialized to NONE.\n");
 	}
 }
