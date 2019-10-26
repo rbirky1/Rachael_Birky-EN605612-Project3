@@ -43,7 +43,7 @@ int currentSlot;
 /* Slots and values */
 int slots[NUM_SLOTS];
 
-hw_t tty_table[100];
+hw_t hw_table[100];
 
 /**
  * Open homework driver
@@ -334,13 +334,13 @@ static void homework_init()
 	if (DEBUG)
 		printf("currentSlot initialized to %d.\n", currentSlot);
 
-	register hw_t *tp;
+	register hw_t *hwp;
 	int s;
-	memset(tty_table, '\0' , sizeof(tty_table));
+	memset(hw_table, '\0' , sizeof(hw_table));
 	for (s=0; s < 100; s++) {
-		tp = &tty_table[s];
-		tp->hw_incaller = NONE;
-		if (DEBUG && (tp->hw_incaller == NONE))
+		hwp = &hw_table[s];
+		hwp->hw_incaller = NONE;
+		if (DEBUG && (hwp->hw_incaller == NONE))
 				printf("hwincaller initialized to NONE.\n");
 	}
 }
