@@ -1,0 +1,1 @@
+rsync -avz ./homework/ -e "ssh -p 2522" root@127.0.0.1:/usr/src/minix/drivers/homework/homework3/
