@@ -99,13 +99,9 @@ static ssize_t homework_read(devminor_t minor, u64_t position,
 	int ret;
 	struct hw_t *hwp;
 
-	if (DEBUG)
+	if (DEBUG){
 		printf("homework_read()\n");
-
-	if (DEBUG)
-	{
-		printf("id: %d.\n", id);
-		printf("endpt: %d.\n", endpt);
+		printf("reader id: %d.\n", id);
 	}
 
 	/* Suspend caller if currentSlot of value at currentSlot is uninitialized */
@@ -120,15 +116,19 @@ static ssize_t homework_read(devminor_t minor, u64_t position,
 		hwp->hw_inposition = position;
 		hwp->hw_inflags = flags;
 		hwp->hw_inminor = minor;
+		hwp->next = NULL;
 
 		if (!head)
 		{
 			head = hwp;
 			tail = hwp;
+			head->previous = NULL;
 		}
 		else
 		{
+			hwp->previous = tail;
 			tail->next = hwp;
+			tail = hwp;
 		}
 
 		if (DEBUG && currentSlot == UNINITIALIZED) {
@@ -217,11 +217,30 @@ static ssize_t homework_write(devminor_t minor, u64_t position,
 			if (hwp->hw_inendpt != NONE)
 			{
 				size_t read_size = homework_read(hwp->hw_inminor, hwp->hw_inposition, hwp->hw_inendpt, hwp->hw_ingrant, hwp->hw_insize, hwp->hw_inflags, hwp->hw_inid);
-				if (DEBUG)
-					printf("unblocking caller: %d.\n", hwp->hw_inid);
+				if (DEBUG) {
+					printf("unblocking reader: %d.\n", hwp->hw_inid);
+				}
 				chardriver_reply_task(hwp->hw_inendpt, hwp->hw_inid, read_size);
-				// TODO: Should probably remove from list?
 				hwp->hw_inendpt = NONE;
+
+				// Center
+				if (hwp->previous && hwp->next)
+				{
+					hwp->previous->next = hwp->next;
+					hwp->next->previous = hwp->previous;
+				}
+				// Head
+				else if (hwp->next && !hwp->previous)
+				{
+					hwp->next->previous = NULL;
+				}
+				// Tail
+				else if (hwp->previous && !hwp->next)
+				{
+					hwp->previous->next = NULL;
+				}
+
+				free(hwp);
 			}
 			hwp = hwp->next;
 		}
