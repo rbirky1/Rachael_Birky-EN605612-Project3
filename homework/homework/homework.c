@@ -40,9 +40,6 @@ static int open_counter;
 /* Current slot */
 int currentSlot;
 
-/* Slots and values */
-int slots[NUM_SLOTS];
-
 struct hw_t* head = NULL;
 struct hw_t* tail = NULL;
 
