@@ -123,6 +123,7 @@ static ssize_t homework_read(devminor_t minor, u64_t position,
 			head = hwp;
 			tail = hwp;
 			head->previous = NULL;
+			tail->next = NULL;
 		}
 		else
 		{
@@ -232,11 +233,13 @@ static ssize_t homework_write(devminor_t minor, u64_t position,
 				// Head
 				else if (hwp->next && !hwp->previous)
 				{
+					head = hwp->next;
 					hwp->next->previous = NULL;
 				}
 				// Tail
 				else if (hwp->previous && !hwp->next)
 				{
+					tail = hwp->previous;
 					hwp->previous->next = NULL;
 				}
 
